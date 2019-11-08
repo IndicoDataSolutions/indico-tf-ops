@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from finetune.util.shapes import shape_list
-
+from indico_tf_ops.python import indico_ops
 
 def linear(inp, output_dim, layer_name):
     with tf.variable_scope(layer_name):
@@ -54,7 +54,7 @@ def dynamic_conv_cpu(inp, weights, padding="causal"):
     unfolded = unfold(inp, kernel_width, padding="causal")
     unfolded = tf.reshape(unfolded, [batch, seq, kernel_size, n_heads, h])
     weights_expanded = tf.expand_dims(weights, 4)
-    
+    return tf.reshape(tf.reduce_sum(weights_expanded * unfolded, 2), shape_list(inp))
 
 def dynamic_conv_on_ra_out(ra_out, weights):
     """
@@ -68,21 +68,22 @@ def dynamic_conv_on_ra_out(ra_out, weights):
     h = n_channels // n_heads
     unfolded = tf.reshape(ra_out, [batch, seq, ra_depth, n_heads, h])
     weights_expanded = tf.expand_dims(weights, 4)
-    return tf.reshape(tf.reduce_sum(weights * unfolded, 2), shape_list(inp))
+    return tf.reshape(tf.reduce_sum(weights_expanded * unfolded, 2), [batch, seq, n_channels])
 
 def dynamic_convolution(inp, inp2=None, n_heads=8, kernel_size=4, padding="causal"):
+    batch, seq, n_channels = shape_list(inp)
     kernel_size_inc_ra = kernel_size
     if inp2 is not None:
         kernel_size_inc_ra += shape_list(inp2)[2]
         
     weights_linear = tf.reshape(
         linear(inp, n_heads * kernel_size_inc_ra, "kernel_machine",),
-        [batch, seq, kernel_size_inc_ra, n_heads, 1], # batch time heads, kernel_size, 1
+        [batch, seq, kernel_size_inc_ra, n_heads], # batch time heads, kernel_size, 1
     )
     weights_linear = tf.nn.softmax(weights_linear, 2)
 
     if inp2 is not None:
-        weights_ra = weights_linear[:, :, -kernel_size:]
+        weights_ra = weights_linear[:, :, kernel_size:]
         weights_linear = weights_linear[:, :, :kernel_size]
         ra_dynamic = dynamic_conv_on_ra_out(inp2, weights_ra)
     else:

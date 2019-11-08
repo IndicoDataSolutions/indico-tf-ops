@@ -1,10 +1,11 @@
 import os
 import warnings
+import math
 
 import tensorflow as tf
 from tensorflow.python.framework import ops
 
-#from finetune.util.shapes import shape_list
+from finetune.util.shapes import shape_list
 
 try:
     kernels_module = tf.load_op_library(
@@ -47,6 +48,8 @@ def dynamic_convolution_op(inp, weights, padding="causal"):
         padding_l = kernel_width // 2
     inp_formatted = tf.transpose(inp, [0, 2, 1])
     weights_formatted = tf.transpose(weights, [0, 3, 2, 1])
-    return dense_module.dynamic_convolution(i, f, K - 1)
+    return tf.transpose(kernels_module.dynamic_convolution(inp_formatted, weights_formatted, padding_l), [0, 2, 1])
+    
+    
     
                                
