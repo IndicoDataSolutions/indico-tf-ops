@@ -1,5 +1,5 @@
 #include "dynamicconv.h"
-#include "../ra/dense.h"
+#include "../ra/ra.h"
 #include "tensorflow/core/framework/op_kernel.h"
 #include "tensorflow/core/framework/tensor_shape.h"
 #include "tensorflow/core/platform/default/logging.h"
@@ -141,29 +141,23 @@ public:
     auto weightTensor = weight.flat<T>();
 
     auto gradInputTensor = gradInput->template flat<T>();
-    ZeroKernelLauncher(gradInputTensor.data(), miniBatch * numFeatures * sequenceLength);
     auto gradWeightTensor = gradWeight->template flat<T>();
-    ZeroKernelLauncher(gradWeightTensor.data(), miniBatch * numHeads * sequenceLength * filterSize);
 
     Tensor tempGradOutputFull;
     OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value, {miniBatch * numHeads * numChunks * (b_size + filterSize)}, &tempGradOutputFull));
     auto temp_grad_out = tempGradOutputFull.flat<T>();
-    ZeroKernelLauncher(temp_grad_out.data(), miniBatch * numHeads * numChunks * (b_size + filterSize));
 
     Tensor tempInputFull;
     OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value, {miniBatch * numHeads * numChunks * (b_size + filterSize)}, &tempInputFull));
     auto temp_input = tempInputFull.flat<T>();
-    ZeroKernelLauncher(temp_input.data(), miniBatch * numHeads * numChunks * (b_size + filterSize));
 
     Tensor tempGradSumFull;
     OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value, {miniBatch * numHeads * numChunks * b_size * filterSize}, &tempGradSumFull));
     auto temp_grad_sum = tempGradSumFull.flat<T>();
-    ZeroKernelLauncher(temp_grad_sum.data(), miniBatch * numHeads * numChunks * b_size * filterSize);
     
     Tensor bFilterFull;
     OP_REQUIRES_OK(context, context->allocate_temp(DataTypeToEnum<T>::value, {miniBatch * numHeads * numChunks * b_size * filterSize}, &bFilterFull));
     auto temp_b_filter = bFilterFull.flat<T>();
-    ZeroKernelLauncher(temp_b_filter.data(), miniBatch * numHeads * numChunks * b_size * filterSize);    
 
     DynamicConvBackwardLauncher(gradOutputTensor.data(), // B * C * T
 				inputTensor.data(), // B * C * T
@@ -186,13 +180,11 @@ public:
   }
 };
 
-#define REGISTER_RA_GPU_KERNELS(T)\
+#define REGISTER_DYNAMIC_CONV_GPU_KERNELS(T)\
   REGISTER_KERNEL_BUILDER(Name("DynamicConvolution").Device(DEVICE_GPU).TypeConstraint<T>("T"), DynamicConvOpGPU<T>);\
   REGISTER_KERNEL_BUILDER(Name("DynamicConvolutionGrad").Device(DEVICE_GPU).TypeConstraint<T>("T"), DynamicConvGradOpGPU <T>);
 
-TF_CALL_GPU_NUMBER_TYPES(REGISTER_RA_GPU_KERNELS);
-//TF_CALL_REAL_NUMBER_TYPES(REGISTER_RA_CPU_KERNELS);
-
+TF_CALL_GPU_NUMBER_TYPES(REGISTER_DYNAMIC_CONV_GPU_KERNELS);
 
 int nextPowerOf2(int n)
 {
