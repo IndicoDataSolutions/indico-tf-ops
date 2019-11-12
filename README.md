@@ -1,5 +1,3 @@
-# indico-tf-ops
-
 # Build and Install
 from the root directory
 ```bash
